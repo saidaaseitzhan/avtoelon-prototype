@@ -1,0 +1,539 @@
+<title>avtoelon.uz прототип</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<style>
+/* Layout: desktop — phone frame (360×780) on a dark board like the Figma file; phone — full-screen app.
+   Single deliberate look: colors are taken from the mockup itself. */
+:root{
+  --board:#1B1D23; --board-fg:#C9CCD6; --board-muted:#7C8190;
+  --surface:#FFFFFF; --ink:#21242C; --ink-2:#5E6472; --muted:#A1A7B3; --chev:#8A909C;
+  --fill:#F3F4F7; --line:#E9EBEF; --bubble:#EEF5FF;
+  --accent:#2D74F0; --accent-soft:#E4EFFD;
+  --scrim:rgba(20,22,28,.45);
+  --kb:#F6F7F9; --kb-key:#3B4A6B;
+  /* motion: мягкое замедление в конце, без резких стартов */
+  --ease:cubic-bezier(.22,1,.36,1); --t-fade:240ms; --t-in:420ms; --t-sheet:380ms;
+  --font:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{margin:0;background:var(--board);color:var(--ink);font-family:var(--font);-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,.search:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.stage{min-height:100%;display:flex;align-items:center;justify-content:center;gap:56px;padding:32px 16px;box-sizing:border-box}
+.notes{max-width:280px;color:var(--board-fg);font-size:14px;line-height:1.5}
+.notes h2{font-size:20px;color:#fff;margin:0 0 4px;font-weight:500;text-wrap:balance}
+.notes .tag{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--board-muted);margin-bottom:12px}
+.notes ol{padding-left:18px;margin:16px 0}
+.notes li{margin-bottom:8px}
+.notes code{background:#2A2D36;border-radius:6px;padding:1px 6px;color:#fff;font-family:var(--font)}
+.notes .restart{margin-top:8px;padding:10px 16px;border-radius:10px;background:#2A2D36;color:#fff;font-weight:500}
+.notes .restart:hover{background:#343844}
+
+.phone{position:relative;width:360px;height:780px;background:var(--surface);border-radius:32px;overflow:hidden;
+  box-shadow:0 0 0 1px #2C2F38,0 30px 80px rgba(0,0,0,.45);display:flex;flex-direction:column;flex:none}
+.statusbar{height:28px;flex:none;display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:0 14px;font-size:14px;color:var(--ink);position:relative}
+.statusbar svg{display:block}
+.gesture{height:20px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--surface)}
+.keyboard-open .gesture{background:var(--kb)}
+.gesture i{width:108px;height:4px;border-radius:2px;background:var(--ink)}
+.screens{position:relative;flex:1;overflow:hidden;min-height:0}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--surface);transition:opacity var(--t-fade) var(--ease)}
+.screen.off{opacity:0;pointer-events:none;visibility:hidden;transition:opacity var(--t-fade) var(--ease),visibility 0s var(--t-fade)}
+
+@media (max-width:500px){
+  body{background:var(--surface)}
+  .stage{padding:0;display:block;height:100%}
+  .notes,.statusbar,.gesture{display:none}
+  .phone{width:100%;height:100%;border-radius:0;box-shadow:none}
+}
+@media (max-width:900px) and (min-width:501px){ .notes{display:none} }
+
+/* ---------- Category screen ---------- */
+.topbar{height:52px;display:flex;align-items:center;padding:0 8px;flex:none}
+.icon-btn{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;color:var(--accent);flex:none}
+.icon-btn:active{background:var(--fill)}
+.cat-scroll{flex:1;overflow:auto;padding:0 16px 16px;display:flex;flex-direction:column}
+.cat-title{font-size:32px;line-height:40px;font-weight:700;margin:16px 0 20px;letter-spacing:-.2px}
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cat{position:relative;overflow:hidden;background:var(--fill);border-radius:12px;height:79px;text-align:left;
+  padding:12px;font-size:14px;line-height:18px;font-weight:500;display:block;transition:transform .15s var(--ease)}
+.cat:active{transform:scale(.98)}
+.cat.big{grid-column:span 2;height:104px;font-size:16px;line-height:20px}
+.cat span{position:relative;z-index:1;display:block;max-width:60%}
+.cat img{position:absolute;pointer-events:none;mix-blend-mode:darken}
+.legal{margin:auto 0 0;padding-top:24px;text-align:center;font-size:12px;line-height:18px;color:var(--muted)}
+.legal a{color:var(--accent);text-decoration:none}
+
+/* ---------- Chat screen: header + progress и инпут зафиксированы, скроллится только лента ---------- */
+.chat-head{height:52px;display:flex;align-items:center;gap:6px;padding:0 12px 0 8px;flex:none}
+.logo{flex:1;display:flex;align-items:center}
+.logo img{height:23px;width:auto;display:block}
+.close-btn{color:var(--accent);font-size:16px;padding:8px 4px}
+.progress{height:4px;margin:4px 16px 0;background:var(--fill);border-radius:2px;flex:none;overflow:hidden}
+.progress i{display:block;height:100%;width:10%;background:var(--accent);border-radius:2px;transition:width .6s var(--ease)}
+.chat-body{flex:1;overflow:auto;padding:20px 16px 16px;display:flex;flex-direction:column;gap:16px;overscroll-behavior:contain}
+.bot{display:flex;gap:8px;align-items:flex-start}
+.bot .ava{width:40px;height:40px;flex:none}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.user{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+
+/* Баблы: 12px по всем углам, кроме угла, который «смотрит» на соседний бабл */
+.bubble{background:var(--bubble);border-radius:12px;padding:8px 12px;font-size:16px;line-height:22px;max-width:100%;box-sizing:border-box}
+.bot .bubble.first:not(.last){border-bottom-left-radius:4px}
+.bot .bubble.last:not(.first){border-top-left-radius:4px}
+.bot .bubble.mid{border-top-left-radius:4px;border-bottom-left-radius:4px}
+.user .bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px;max-width:80%}
+.slot{align-self:stretch;min-width:0;margin-top:4px}
+
+.msg{animation:rise var(--t-in) var(--ease) both}
+@keyframes rise{from{opacity:0;transform:translateY(12px) scale(.98)}}
+.bot .msg{transform-origin:left bottom}.user .msg{transform-origin:right bottom}
+.ava.msg{animation-name:fade}
+@keyframes fade{from{opacity:0}}
+.swap{animation:swap 260ms var(--ease) both}
+@keyframes swap{from{opacity:0;transform:translateY(6px)}}
+
+.brands{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.brand{background:var(--fill);border-radius:12px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  font-size:15px;line-height:20px;padding:0 4px;min-width:0;transition:background .15s}
+.brand:active{background:var(--line)}
+.brand img{height:24px;width:43px;object-fit:contain;mix-blend-mode:darken}
+.brand .nm{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand.all{background:var(--accent-soft);color:var(--accent);line-height:22px;text-align:center}
+
+.results{display:flex;flex-direction:column;gap:6px}
+.group{background:var(--fill);border-radius:16px;padding:8px 0 4px}
+.group h4{margin:0;padding:4px 16px 6px;font-size:14px;font-weight:400;color:var(--muted)}
+.group .row{display:block;width:100%;text-align:left;padding:10px 16px;font-size:15px;line-height:20px;position:relative}
+.group .row+.row::before{content:"";position:absolute;left:16px;right:16px;top:0;height:1px;background:var(--line)}
+.group .row:active{background:var(--line)}
+mark{background:none;color:var(--accent);font-weight:500}
+.empty{background:var(--fill);border-radius:16px;padding:14px 16px;font-size:14px;line-height:20px;color:var(--ink-2)}
+.skel{height:64px;border-radius:16px;background:var(--fill);position:relative;overflow:hidden}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.85) 50%,transparent 80%);
+  transform:translateX(-100%);animation:shim 1.1s infinite}
+@keyframes shim{to{transform:translateX(100%)}}
+
+.search-wrap{padding:8px 16px 10px;flex:none;background:var(--surface);transition:opacity var(--t-in) var(--ease),transform var(--t-in) var(--ease)}
+.search-wrap.pre{opacity:0;transform:translateY(10px);pointer-events:none}
+.search{height:44px;border-radius:12px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 12px;cursor:text;box-sizing:border-box}
+.search .q{flex:1;font-size:16px;white-space:nowrap;overflow:hidden;display:flex;align-items:center}
+.search .ph{color:var(--muted)}
+.caret{display:inline-block;width:1.5px;height:20px;background:var(--accent);margin-left:1px;flex:none;animation:caret 1s steps(1) infinite}
+@keyframes caret{50%{opacity:0}}
+.search .clear{width:24px;height:24px;display:grid;place-items:center}
+
+/* ---------- Bottom sheet «Все марки» ---------- */
+.scrim{position:absolute;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--t-sheet) var(--ease);z-index:3}
+.sheet{position:absolute;left:0;right:0;top:56px;bottom:0;background:var(--surface);border-radius:16px 16px 0 0;z-index:4;
+  display:flex;flex-direction:column;transform:translateY(100%);transition:transform var(--t-sheet) var(--ease);visibility:hidden}
+.sheet-open .scrim{opacity:1;pointer-events:auto}
+.sheet-open .sheet{transform:none;visibility:visible}
+.sheet.closing{visibility:visible}
+.sheet-head{display:flex;align-items:center;gap:4px;padding:16px 8px 8px}
+.sheet-head h3{margin:0;font-size:18px;line-height:24px;font-weight:500}
+.sheet .search{margin:4px 16px 8px}
+.sheet .search .q{font-size:16px}
+.list{flex:1;overflow:auto;overscroll-behavior:contain;padding-bottom:8px}
+.list .row{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:0 16px;height:58px;font-size:16px;position:relative}
+.list .row::after{content:"";position:absolute;left:16px;right:0;bottom:0;height:1px;background:var(--line)}
+.list .row:active{background:var(--fill)}
+.list .row svg{flex:none;color:var(--chev)}
+.list .none{padding:20px 16px;color:var(--ink-2);font-size:15px;line-height:22px}
+.spinner{width:28px;height:28px;margin:24px auto;border-radius:50%;border:3px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Keyboard ---------- */
+.kb{flex:none;background:var(--kb);padding:6px 3px 4px;display:none;user-select:none}
+.keyboard-open .kb{display:block;animation:kbin 260ms var(--ease) both}
+@keyframes kbin{from{transform:translateY(40%);opacity:.4}}
+.kb-row{display:flex;justify-content:center}
+.key{flex:1;max-width:36px;height:46px;display:flex;align-items:center;justify-content:center;position:relative;font-size:21px;color:var(--kb-key);border-radius:8px}
+.key:active{background:var(--line)}
+.key sup{position:absolute;top:4px;right:8px;font-size:9px;color:var(--muted)}
+.key.wide{max-width:52px;flex:1.4;font-size:13px}
+.key.space{max-width:none;flex:5;font-size:11px;color:var(--ink-2)}
+.key.space span{background:#fff;border-radius:6px;width:92%;height:26px;display:grid;place-items:center}
+.key.shift.on,.key.go{color:var(--accent)}
+
+.toast{position:absolute;left:50%;bottom:44px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;font-size:14px;line-height:20px;
+  padding:10px 16px;border-radius:12px;width:max-content;max-width:300px;text-align:center;transition:.3s var(--ease);pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion:reduce){
+  .screen,.msg,.swap,.search-wrap,.sheet,.scrim,.kb,.skel::after{transition:none!important;animation:none!important}
+}
+</style>
+
+<div class="stage">
+  <aside class="notes">
+    <div class="tag">Прототип · Android · Webview</div>
+    <h2>Подача объявления в виде чата</h2>
+    <ol>
+      <li>Выберите «Легковые машины».</li>
+      <li>Выберите марку в чате, найдите её через поиск или откройте «Показать все».</li>
+      <li>С 1-го символа ищем марки. С 3-го идёт загрузка, затем марки и модели. Попробуйте <code>C</code>, <code>Cob</code>, а в списке всех марок <code>To</code>, <code>Toy</code>.</li>
+    </ol>
+    <p>Можно печатать и с клавиатуры компьютера.</p>
+    <button class="restart" id="restart">Начать заново</button>
+  </aside>
+
+  <div class="phone" id="phone">
+    <div class="statusbar">
+      <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 12 0 3.2A11.5 11.5 0 0 1 16 3.2Z" fill="currentColor"/></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12"><path d="M12 0v12H0Z" fill="currentColor"/></svg>
+      <svg width="8" height="13" viewBox="0 0 8 13"><rect x="0" y="1.5" width="8" height="11.5" rx="1" fill="currentColor"/><rect x="2.5" y="0" width="3" height="2" fill="currentColor"/></svg>
+      <span>12:30</span>
+    </div>
+
+    <div class="screens">
+      <!-- 1. Категории -->
+      <section class="screen" id="s-cat" aria-label="Страница категории">
+        <div class="topbar">
+          <button class="icon-btn" id="cat-back" aria-label="Назад">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          </button>
+        </div>
+        <div class="cat-scroll">
+          <h1 class="cat-title">Что вы продаёте?</h1>
+          <div class="cats">
+            <button class="cat big" data-go="chat"><span>Легковые машины</span><img src="img/car.png" alt="" style="right:0;top:7px;width:169px"></button>
+            <button class="cat big"><span>Спецтехника</span><img src="img/tractor.png" alt="" style="right:22px;top:0;width:137px"></button>
+            <button class="cat"><span>Грузовые<br>и газели</span><img src="img/truck.png" alt="" style="right:-3px;top:9px;width:77px"></button>
+            <button class="cat"><span>Автобусы</span><img src="img/bus.png" alt="" style="right:-2px;top:15px;width:89px"></button>
+            <button class="cat"><span>Мототехника</span><img src="img/moto.png" alt="" style="right:6px;top:14px;width:72px"></button>
+            <button class="cat"><span>Водный транспорт</span><img src="img/jet.png" alt="" style="right:-2px;top:26px;width:89px"></button>
+            <button class="cat"><span>Ремонт и услуги</span><img src="img/wrench.png" alt="" style="right:1px;top:24px;width:62px"></button>
+            <button class="cat"><span>Запчасти и товары</span><img src="img/brake.png" alt="" style="right:1px;top:28px;width:72px"></button>
+          </div>
+          <p class="legal">Размещая объявления, вы соглашаетесь с <a href="#" id="rules">этими правилами</a></p>
+        </div>
+      </section>
+
+      <!-- 2. Чат -->
+      <section class="screen off" id="s-chat" aria-label="Подача в виде чата">
+        <div class="chat-head">
+          <button class="icon-btn" id="chat-back" aria-label="Назад">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          </button>
+          <div class="logo"><img src="img/logo.png" alt="avtoelon.uz"></div>
+          <button class="close-btn" id="chat-close">Закрыть</button>
+        </div>
+        <div class="progress"><i id="progress"></i></div>
+        <div class="chat-body" id="chat-body"></div>
+        <div class="search-wrap pre" id="search-wrap">
+          <div class="search" id="chat-search" data-field="chat" role="searchbox" tabindex="0" aria-label="Поиск марки или модели">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C8190" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <div class="q"></div>
+            <button class="clear" aria-label="Очистить" hidden><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#7C8190"/><path d="m8.5 8.5 7 7m0-7-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          </div>
+        </div>
+
+        <!-- 3. Bottom sheet: все марки -->
+        <div class="scrim" id="scrim"></div>
+        <div class="sheet" id="sheet" role="dialog" aria-label="Все марки">
+          <div class="sheet-head">
+            <button class="icon-btn" id="sheet-back" aria-label="Закрыть список">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+            </button>
+            <h3 id="sheet-title">Все марки</h3>
+          </div>
+          <div class="search" id="sheet-search" data-field="sheet" role="searchbox" tabindex="0" aria-label="Поиск по марке и модели">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C8190" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <div class="q"></div>
+            <button class="clear" aria-label="Очистить" hidden><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#7C8190"/><path d="m8.5 8.5 7 7m0-7-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          </div>
+          <div class="list" id="sheet-list"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="kb" id="kb" aria-hidden="true"></div>
+    <div class="gesture"><i></i></div>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const phone = $('#phone'), sCat = $('#s-cat'), sChat = $('#s-chat'), body = $('#chat-body');
+  const CHEV = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+  // ---------- Data ----------
+  const TOP = ['Chevrolet','Daewoo','VAZ (Lada)','Kia','BYD','Hyundai','Chery','Mercedes-Benz','GAZ','Toyota','Changan'];
+  const LOGO = {'Chevrolet':'chevrolet','Daewoo':'daewoo','VAZ (Lada)':'vaz','Kia':'kia','BYD':'byd','Hyundai':'hyundai','Chery':'chery',
+    'Mercedes-Benz':'mercedes','GAZ':'gaz','Toyota':'toyota','Changan':'changan'};
+  const OTHER = ['ARO','Acura','Alfa Romeo','Audi','BMW','Citroen','Dodge','FAW','Ford','Geely','Haval','Honda','Isuzu','JAC','Jetour','Lexus',
+    'Li Auto','Lincoln','Mazda','Mitsubishi','Nissan','Opel','Peugeot','Renault','Skoda','Subaru','Suzuki','Tofas','Volkswagen','Volvo','Zeekr',
+    'ЗАЗ','Москвич','РАФ','УАЗ'];
+  const ALL = [...TOP, ...OTHER];
+  // Алфавит: сначала латиница, потом кириллица
+  const ALPHA = [...ALL].sort((a,b) => (/^[А-Я]/i.test(a) - /^[А-Я]/i.test(b)) || a.localeCompare(b, 'en', {sensitivity:'base'}));
+  const ALIAS = {'Chevrolet':'шевроле','Daewoo':'дэу','VAZ (Lada)':'ваз лада lada','Kia':'киа','Hyundai':'хендай хундай','Toyota':'тойота','Mercedes-Benz':'мерседес',
+    'GAZ':'газ','BYD':'бид','Changan':'чанган','Chery':'чери','РАФ':'raf','ЗАЗ':'zaz','Москвич':'moskvich','УАЗ':'uaz'};
+  const MODELS = {
+    'Chevrolet':['Cobalt','Gentra','Nexia','Spark','Malibu','Tracker','Captiva','Lacetti','Damas','Onix','Equinox','Tahoe','Labo'],
+    'Daewoo':['Matiz','Nexia','Gentra','Lanos'],
+    'Kia':['K5','Sportage','Sonet','Seltos','Concord','Carnival','Rio','Sorento'],
+    'Hyundai':['Elantra','Sonata','Tucson','Santa Fe','Creta','Accent'],
+    'BYD':['Song Plus','Han','Chazor','Seagull','Yuan Plus','Tang','Destroyer 05'],
+    'Toyota':['Townace Regius','Town Ace','Sequoia','Town Ace Noah','Xa','Allex','Altezza','Camry','Corolla','Land Cruiser','Land Cruiser Prado','RAV4'],
+    'Ford':['Escort','Focus','Mustang','Explorer','Mondeo'],
+    'Changan':['CS35 Plus','CS55 Plus','UNI-K','UNI-V','Eado Plus'],
+    'Chery':['Tiggo 7 Pro','Tiggo 8 Pro','Arrizo 8','Tiggo 4'],
+    'Mercedes-Benz':['E-Class','S-Class','C-Class','GLE','Sprinter'],
+    'VAZ (Lada)':['2107','2106','2105','Niva','Granta','Vesta','Largus'],
+    'GAZ':['Gazelle Next','Volga 24','Volga 3110'],
+    'Lincoln':['Continental','Town Car','Navigator'],
+    'BMW':['X5','X6','5 Series','3 Series'],
+    'Volkswagen':['Polo','Passat','Jetta','ID.4','ID.6'],
+    'Nissan':['Almera','Qashqai','X-Trail'],'Lexus':['LX 600','RX 350','ES 250'],'Citroen':['C4','C5 Aircross','Berlingo'],
+    'Mazda':['Mazda 6','CX-5'],'Honda':['Civic','Accord','CR-V'],'Haval':['Jolion','H6','Dargo'],'Tofas':['Sahin','Dogan','Kartal'],
+  };
+  const MALIAS = {'Cobalt':'кобальт','Gentra':'джентра','Nexia':'нексия','Spark':'спарк','Malibu':'малибу','Tracker':'трекер','Lacetti':'лачетти','Damas':'дамас',
+    'Matiz':'матиз','Captiva':'каптива','Camry':'камри','Song Plus':'сонг','Concord':'конкорд','Escort':'эскорт','Niva':'нива'};
+  const short = b => b.replace(' (Lada)','');
+  const MODEL_LIST = Object.entries(MODELS).flatMap(([b, ms]) => ms.map(m => ({brand:b, model:m, label:`${short(b)} ${m}`})));
+
+  // ---------- Search (одинаковая логика для чата и шторки) ----------
+  // 1–2 символа — мгновенно по маркам; 3+ — запрос в Elastic Search с состоянием загрузки
+  const norm = s => s.toLowerCase().replace(/ё/g,'е');
+  function score(text, alias, q){
+    const words = norm(text + ' ' + (alias||'')).split(/[\s\-()]+/).filter(Boolean);
+    if (words.some(w => w.startsWith(q))) return 3;
+    if (norm(text).includes(q)) return 2;
+    if (q.length >= 3 && words.some(w => w.length > 2 && w.startsWith(q.slice(0,2)))) return 1; // нечёткое совпадение
+    return 0;
+  }
+  function matchBrands(q, strict, limit){
+    q = norm(q);
+    return ALPHA.map((b,i) => ({b, s:score(b, ALIAS[b], q), i})).filter(x => strict ? x.s >= 3 : x.s >= 2)
+      .sort((a,c) => c.s - a.s || a.i - c.i).slice(0, limit).map(x => x.b);
+  }
+  function matchModels(q, limit, strict){
+    q = norm(q);
+    return MODEL_LIST.map((m,i) => ({...m, i, s: Math.max(score(m.model, MALIAS[m.model], q), score(m.label, '', q) >= 3 ? 2 : 0)}))
+      .filter(x => strict ? x.s >= 2 : x.s > 0).sort((a,c) => c.s - a.s || a.i - c.i).slice(0, limit);
+  }
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function hl(label, q){
+    const i = norm(label).indexOf(norm(q));
+    return i < 0 || !q ? esc(label) : esc(label.slice(0,i)) + '<mark>' + esc(label.slice(i, i+q.length)) + '</mark>' + esc(label.slice(i+q.length));
+  }
+
+  // ---------- State ----------
+  const fields = {
+    chat:  {el:$('#chat-search'),  q:'', loading:false, timer:null, mode:''},
+    sheet: {el:$('#sheet-search'), q:'', loading:false, timer:null, mode:''},
+  };
+  const st = {screen:'cat', kb:false, active:null, shift:false, sheet:false, picked:null, timers:[]};
+
+  // ---------- Navigation ----------
+  function go(to){
+    st.screen = to;
+    if (to === 'chat'){
+      sCat.classList.add('off');
+      later(() => { sChat.classList.remove('off'); startChat(); }, 140);
+    } else {
+      clearTimers(); setKb(false); closeSheet(true);
+      sChat.classList.add('off');
+      later(() => { body.innerHTML = ''; $('.cat-scroll').scrollTop = 0; sCat.classList.remove('off'); }, 140);
+    }
+  }
+  const later = (fn, ms) => st.timers.push(setTimeout(fn, ms));
+  function clearTimers(){ st.timers.forEach(clearTimeout); st.timers = []; }
+
+  document.querySelectorAll('.cat').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.go) go('chat'); else toast('В прототипе доступны только «Легковые машины»');
+  }));
+  $('#cat-back').onclick = () => toast('Это первый экран прототипа');
+  $('#rules').onclick = e => { e.preventDefault(); toast('Правила — вне прототипа'); };
+  $('#chat-back').onclick = () => st.kb ? setKb(false) : st.sheet ? closeSheet() : go('cat');
+  $('#chat-close').onclick = () => go('cat');
+  $('#restart').onclick = () => go('cat');
+
+  // ---------- Chat: интро проигрывается при каждом входе ----------
+  const AVA = '<img class="ava msg" src="img/avatar.png" alt="Менеджер avtoelon.uz">';
+  function startChat(){
+    clearTimers();
+    Object.values(fields).forEach(f => { clearTimeout(f.timer); f.q=''; f.loading=false; f.mode=''; });
+    st.picked = null; setProgress(10); renderField('chat'); renderField('sheet');
+    $('#search-wrap').classList.add('pre');
+    body.innerHTML = `<div class="bot">${AVA.replace('msg"','msg" style="animation-delay:120ms"')}<div class="col" id="bot"></div></div><div id="tail"></div>`;
+    const bot = $('#bot'), add = h => bot.insertAdjacentHTML('beforeend', h);
+    later(() => add(`<div class="bubble first msg">Ассалому Алейкум!</div>`), 120);
+    later(() => add(`<div class="bubble last msg">Какую машину продаете?</div>`), 440);
+    later(() => { add(`<div class="slot msg" id="pick"></div>`); fields.chat.mode = 'grid'; renderPick(); }, 760);
+    later(() => $('#search-wrap').classList.remove('pre'), 980);
+  }
+
+  function renderPick(){
+    const pick = $('#pick'); if (!pick) return;
+    if (st.picked){ pick.remove(); return; }
+    const f = fields.chat, q = f.q.trim();
+    const mode = !q ? 'grid' : q.length < 3 ? 'list' : f.loading ? 'skel' : 'res';
+    if (mode !== f.mode){ pick.classList.remove('msg','swap'); void pick.offsetWidth; pick.classList.add('swap'); f.mode = mode; }
+    if (mode === 'grid'){ pick.innerHTML = brandGrid(); return; }
+    if (mode === 'skel'){ pick.innerHTML = `<div class="skel"></div>`; return; }
+    const brands = matchBrands(q, mode === 'list', mode === 'list' ? 4 : 3);
+    const models = mode === 'res' ? matchModels(q, 6) : [];
+    const rows = (arr, fn) => arr.map(fn).join('');
+    pick.innerHTML = (brands.length || models.length)
+      ? `<div class="results">
+          ${brands.length ? `<div class="group"><h4>Марки</h4>${rows(brands, b => `<button class="row" data-pick="${esc(b)}">${hl(b,q)}</button>`)}</div>` : ''}
+          ${models.length ? `<div class="group"><h4>Модели</h4>${rows(models, m => `<button class="row" data-pick="${esc(m.brand+'|'+m.model)}">${hl(m.label,q)}</button>`)}</div>` : ''}
+        </div>`
+      : `<div class="empty">По запросу «${esc(q)}» ничего не нашлось. Проверьте написание или откройте список всех марок.</div>`;
+  }
+  function brandGrid(){
+    const cell = b => `<button class="brand" data-pick="${esc(b)}"><img src="img/${LOGO[b]}.png" alt=""><span class="nm">${esc(b)}</span></button>`;
+    return `<div class="brands">${TOP.map(cell).join('')}<button class="brand all" id="show-all">Показать<br>все&nbsp;›</button></div>`;
+  }
+
+  body.addEventListener('click', e => {
+    if (e.target.closest('#show-all')){ openSheet(); return; }
+    const t = e.target.closest('[data-pick]'); if (t) choose(t.dataset.pick);
+  });
+
+  function choose(val){
+    const [brand, model] = val.split('|');
+    st.picked = {brand, model};
+    Object.values(fields).forEach(f => { clearTimeout(f.timer); f.q=''; f.loading=false; });
+    setKb(false); if (st.sheet) closeSheet();
+    renderField('chat'); renderPick();
+    const label = model ? `${short(brand)} ${model}` : brand;
+    const tail = $('#tail');
+    tail.innerHTML = `<div class="user"><div class="bubble msg">${esc(label)}</div></div>`;
+    setProgress(model ? 25 : 18);
+    scrollDown();
+  }
+  const scrollDown = () => requestAnimationFrame(() => body.scrollTo({top: body.scrollHeight, behavior: 'smooth'}));
+  function setProgress(p){ $('#progress').style.width = p + '%'; }
+
+  // ---------- Bottom sheet ----------
+  const sheet = $('#sheet'), list = $('#sheet-list');
+  function openSheet(){
+    setKb(false);
+    const f = fields.sheet; f.q=''; f.loading=false; f.mode=''; renderField('sheet'); renderSheet();
+    list.scrollTop = 0; st.sheet = true; sChat.classList.add('sheet-open');
+  }
+  function closeSheet(instant){
+    if (!st.sheet) return;
+    st.sheet = false; if (st.active === 'sheet') setKb(false);
+    sChat.classList.remove('sheet-open');
+    if (!instant){ sheet.classList.add('closing'); setTimeout(() => sheet.classList.remove('closing'), 400); }
+  }
+  $('#scrim').onclick = () => closeSheet();
+  $('#sheet-back').onclick = () => st.kb ? setKb(false) : closeSheet();
+
+  function renderSheet(){
+    const f = fields.sheet, q = f.q.trim();
+    const mode = !q ? 'all' : q.length < 3 ? 'list' : f.loading ? 'load' : 'res';
+    const changed = mode !== f.mode; f.mode = mode;
+    let title = 'Все марки', html;
+    const brandRow = b => `<button class="row" data-pick="${esc(b)}"><span>${hl(b,q)}</span>${CHEV}</button>`;
+    if (mode === 'all') html = ALPHA.map(brandRow).join('');
+    else if (mode === 'load') html = `<div class="spinner" role="progressbar" aria-label="Загрузка"></div>`;
+    else {
+      const brands = matchBrands(q, true, 50);
+      const models = mode === 'res' ? matchModels(q, 40, true) : [];
+      if (models.length){
+        title = 'Все модели';
+        html = models.map(m => `<button class="row" data-pick="${esc(m.brand+'|'+m.model)}"><span>${hl(m.label,q)}</span>${CHEV}</button>`).join('');
+      } else html = brands.map(brandRow).join('');
+      if (!html) html = `<div class="none">По запросу «${esc(q)}» ничего не нашлось. Проверьте написание.</div>`;
+    }
+    $('#sheet-title').textContent = title;
+    list.innerHTML = html;
+    if (changed){ list.classList.remove('swap'); void list.offsetWidth; list.classList.add('swap'); list.scrollTop = 0; }
+  }
+  list.addEventListener('click', e => { const t = e.target.closest('[data-pick]'); if (t) choose(t.dataset.pick); });
+
+  // ---------- Fields + keyboard ----------
+  function renderField(name){
+    const f = fields[name], qEl = f.el.querySelector('.q');
+    const caret = st.kb && st.active === name ? '<span class="caret"></span>' : '';
+    const ph = name === 'sheet' ? 'Поиск по марке и модели' : 'Поиск';
+    qEl.innerHTML = f.q ? `<span>${esc(f.q)}</span>${caret}` : `${caret}<span class="ph">${ph}</span>`;
+    f.el.querySelector('.clear').hidden = !f.q;
+  }
+  function setKb(open, name){
+    if (open && st.picked && name === 'chat'){ toast('Нажмите «Закрыть», чтобы начать заново'); return; }
+    const prev = st.active;
+    st.kb = open; st.active = open ? name : null;
+    phone.classList.toggle('keyboard-open', open);
+    if (prev) renderField(prev);
+    if (open) renderField(name);
+  }
+  function setQuery(name, q){
+    const f = fields[name];
+    f.q = q; renderField(name); clearTimeout(f.timer);
+    const rerender = name === 'chat' ? renderPick : renderSheet;
+    if (q.trim().length >= 3){
+      f.loading = true; rerender();
+      f.timer = setTimeout(() => { f.loading = false; rerender(); }, 800);
+    } else { f.loading = false; rerender(); }
+  }
+  Object.entries(fields).forEach(([name, f]) => {
+    f.el.addEventListener('click', e => {
+      if (e.target.closest('.clear')){ e.stopPropagation(); setQuery(name, ''); return; }
+      setKb(true, name);
+    });
+    f.el.addEventListener('keydown', e => { if (e.key === 'Enter' && !st.kb){ e.preventDefault(); setKb(true, name); } });
+  });
+
+  const ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm'];
+  function renderKb(){
+    const up = c => st.shift ? c.toUpperCase() : c;
+    const k = (c,i) => `<button class="key" data-ch="${c}" tabindex="-1">${up(c)}${i!=null ? `<sup>${(i+1)%10}</sup>` : ''}</button>`;
+    $('#kb').innerHTML =
+      `<div class="kb-row">${[...ROWS[0]].map((c,i)=>k(c,i)).join('')}</div>
+       <div class="kb-row">${[...ROWS[1]].map(c=>k(c)).join('')}</div>
+       <div class="kb-row"><button class="key wide shift ${st.shift?'on':''}" data-act="shift" tabindex="-1" aria-label="Shift">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="${st.shift?'currentColor':'none'}" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 4 4 12h4.5v7h7v-7H20Z"/></svg></button>
+         ${[...ROWS[2]].map(c=>k(c)).join('')}
+         <button class="key wide" data-act="del" tabindex="-1" aria-label="Стереть">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M8 5h12v14H8l-6-7Z"/><path d="m11 9 6 6m0-6-6 6" stroke-linecap="round"/></svg></button></div>
+       <div class="kb-row"><button class="key wide" data-act="num" tabindex="-1">?123</button>
+         <button class="key" data-ch="," tabindex="-1">,</button>
+         <button class="key" data-act="lang" tabindex="-1" aria-label="Язык"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></button>
+         <button class="key space" data-ch=" " tabindex="-1"><span>English (US)</span></button>
+         <button class="key" data-ch="." tabindex="-1">.</button>
+         <button class="key wide go" data-act="go" tabindex="-1" aria-label="Найти"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button></div>`;
+  }
+  $('#kb').addEventListener('click', e => {
+    const b = e.target.closest('.key'); if (!b || !st.active) return;
+    const f = fields[st.active];
+    if (b.dataset.ch != null){
+      const ch = st.shift ? b.dataset.ch.toUpperCase() : b.dataset.ch;
+      if (f.q.length < 40) setQuery(st.active, f.q + ch);
+      if (st.shift){ st.shift = false; renderKb(); }
+      return;
+    }
+    const a = b.dataset.act;
+    if (a === 'del') setQuery(st.active, f.q.slice(0,-1));
+    if (a === 'shift'){ st.shift = !st.shift; renderKb(); }
+    if (a === 'go') setKb(false);
+    if (a === 'num' || a === 'lang') toast('Можно печатать и с клавиатуры компьютера');
+  });
+  // Физическая клавиатура (десктоп) — когда поле активно
+  document.addEventListener('keydown', e => {
+    if (st.screen !== 'chat' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!st.kb){ if (e.key === 'Escape' && st.sheet) closeSheet(); return; }
+    const f = fields[st.active];
+    if (e.key === 'Backspace'){ e.preventDefault(); setQuery(st.active, f.q.slice(0,-1)); }
+    else if (e.key === 'Escape' || e.key === 'Enter'){ e.preventDefault(); setKb(false); }
+    else if (e.key.length === 1 && f.q.length < 40){ e.preventDefault(); setQuery(st.active, f.q + e.key); }
+  });
+
+  // ---------- Toast ----------
+  let tt;
+  function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2200); }
+
+  renderField('chat'); renderField('sheet'); renderKb();
+})();
+</script>
